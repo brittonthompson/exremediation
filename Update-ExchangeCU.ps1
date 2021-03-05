@@ -4,6 +4,10 @@
   - Best method for use is to open the PowerShell ISE and run it in sections as you need them
     - Highlight the section of code you need and hit F8 or hit the little icon for run selection
   - This is broken down into sections separated by headers you can't miss so go section by section
+  - Use these guides for the Exchange CU installation
+    - 2013: https://practical365.com/exchange-server/exchange-2013-installing-cumulative-updates/
+    - 2016: https://practical365.com/exchange-server/installing-cumulative-updates-on-exchange-server-2016/
+    - 2019: Just use the one for 2016 or the one from MS https://docs.microsoft.com/en-us/Exchange/plan-and-deploy/install-cumulative-updates?view=exchserver-2019
 #>
 
 #/---------------------------------------------------------------------------
