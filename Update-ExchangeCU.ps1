@@ -190,25 +190,91 @@ else {
 This will gather details about the infected files if they're found and give you a list to work with
 #>
 
-$KnownFiles = (Invoke-RestMethod -Uri "https://raw.githubusercontent.com/brittonthompson/exremediation/master/KnownFiles.txt" -Method GET).Split("`n")
+class CootiePath {
+  [string]$Path
+  [bool]$ExtensionsCheck
+  [bool]$Recurse
+  [string]$PathRegex
+  [string[]]$AllButThese
+
+  CootiePath() { $this }
+}
+
+$Extensions = @(".aspx")
 $KnownPaths = @(
-  "C:\inetpub\wwwroot\aspnet_client",
-  "C:\inetpub\wwwroot\aspnet_client\system_web\",
-  "$env:ExchangeInstallPath\FrontEnd\HttpProxy\owa\auth"
+  [CootiePath]@{
+    Path = "$($env:ExchangeInstallPath)\FrontEnd\HttpProxy\ecp\auth"
+    AllButThese = @("TimeoutLogout.aspx")
+  },
+  [CootiePath]@{
+    Path = "$($env:ExchangeInstallPath)FrontEnd\HttpProxy\owa\auth"
+    AllButThese = @(
+      "errorFE.aspx",
+      "ExpiredPassword.aspx",
+      "frowny.aspx",
+      "getidtoken.htm",
+      "logoff.aspx",
+      "logon.aspx",
+      "OutlookCN.aspx",
+      "RedirSuiteServiceProxy.aspx",
+      "signout.aspx"
+    )
+  },
+  [CootiePath]@{
+    Path = "$($env:ExchangeInstallPath)FrontEnd\HttpProxy\owa\auth\Current"
+    ExtensionsCheck = $true
+    Recurse = $true
+  },
+  [CootiePath]@{
+    Path = "$($env:ExchangeInstallPath)FrontEnd\HttpProxy\owa\auth"
+    ExtensionsCheck = $true
+    Recurse = $true
+    PathRegex = "[0-9]{2}\.[0-9]\.[0-9]{4}"
+  },
+  [CootiePath]@{
+    Path = "C:\inetpub\wwwroot\aspnet_client"
+    ExtensionsCheck = $true
+    Recurse = $true
+  }
 )
 
 $Remediate = @()
 foreach ($P in $KnownPaths) {
-  Write-Host "[$(Get-Date)] Check Path: $P"
-  $KnownFiles | ForEach-Object { 
-    Write-Host " - Check File: $_"
-    if (Test-Path "$P\$_") {
-      $Remediate += Get-Item "$P\$_"
+  $Path = $P.Path
+  $Recurse = $P.Recurse
+
+  if (Test-Path $Path) {
+
+    if ($P.PathRegex) { 
+      $Path = (Get-ChildItem -Path $Path | Where-Object { 
+        $_.PSIsContainer -and
+        $_.Name -match $P.PathRegex 
+      }).FullName
     }
+
+    if ($Path -and (Test-Path $Path)) {
+      Write-Host "[$(Get-Date)] Check Path: $Path"
+
+      if ($P.ExtensionsCheck) {
+        Write-Host " - Check Extensions"
+        $Remediate += Get-ChildItem -Path $Path -Recurse:$Recurse  | Where-Object { -not $_.PSIsContainer -and $_.Extension -in $Extensions }
+      }
+    
+      if ($P.AllButThese) {
+        Write-Host " - Check All But These"
+        $Remediate += Get-ChildItem -Path $Path -Recurse:$Recurse  | Where-Object { -not $_.PSIsContainer -and $_.Name -notin $P.AllButThese }
+      }  
+    }
+    else {
+      Write-Host "[$(Get-Date)] Path Not Found with Regex $($P.PathRegex): $($P.Path)"
+    }
+  }
+  else {
+    Write-Host "[$(Get-Date)] Path Not Found: $Path"
   }
 }
 
 if ($Remediate) {
   Write-Host "[$(Get-Date)] Discovered Files to Remediate:"
-  $File | Format-Table CreationTime, FullName
+  $Remediate | Format-Table CreationTime, FullName
 }
